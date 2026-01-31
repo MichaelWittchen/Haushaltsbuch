@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: web3_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: web3db
+    volumes:
+      - mongodb_data:/data/db
+      - ./db/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - web3_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/web3db --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web3_backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: 5000
+      MONGO_URI: mongodb://admin:admin123@mongodb:27017/web3db?authSource=admin
+      JWT_SECRET: mysecretkey123456789
+      NODE_ENV: production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - web3_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: web3_frontend
+    restart: always
+    ports:
+      - "4173:4173"
+    depends_on:
+      - backend
+    networks:
+      - web3_network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  web3_network:
+    driver: bridge
